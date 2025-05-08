@@ -1,4 +1,4 @@
-import myPackage from "mpackage";
+import { myPackage } from "mpackage";
 console.log(
   "module: ",
   myPackage({
