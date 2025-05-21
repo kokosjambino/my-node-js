@@ -82,7 +82,7 @@ const resizeImage = async (inputPath, outputPath) => {
   }
 };
 
-resizeImage('./files/screen-7.jpg', './files/resized.jpg');
+resizeImage('./files/screen-7.jpeg', './files/resized.jpg');
 
 const colorImage = async (inputPath, outputPath) => {
   const rStream = createReadStream(inputPath);
@@ -95,4 +95,4 @@ const colorImage = async (inputPath, outputPath) => {
   }
 };
 
-colorImage('./files/screen-7.jpg', './files/changeColor.jpg');
+colorImage('./files/screen-7.jpeg', './files/changeColor.jpg');
