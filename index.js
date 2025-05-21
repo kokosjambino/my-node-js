@@ -1,161 +1,98 @@
 // Задание 1
 
-import fs from 'node:fs/promises';
+import { Buffer } from 'node:buffer';
 
-async function copyDirectory(sourceDir, targetDir, callback) {
-  let errorMessage = null;
+const textToBuffer = (text, encoding) => {
   try {
-    await fs.mkdir(targetDir, { recursive: true });
-    const files = await fs.readdir(sourceDir);
-
-    for (const file of files) {
-      const sourcePath = sourceDir + '/' + file;
-      const targetPath = targetDir + '/' + file;
-
-      const stat = await fs.stat(sourcePath);
-
-      if (stat.isDirectory()) {
-        await copyDirectory(sourcePath, targetPath, callback);
-      } else {
-        await fs.copyFile(sourcePath, targetPath);
-      }
-    }
-  } catch (err) {
-    errorMessage = err;
-    throw err;
-  }
-
-  callback(errorMessage);
-}
-
-async function runTest() {
-  const testDir = 'testDir';
-  const copyDir = 'copyDir';
-
-  try {
-    await copyDirectory(testDir, copyDir, onError);
+    return Buffer.from(text, encoding);
   } catch (error) {
-    console.error('Возникла ошибка при копировании', error);
+    console.error(`Ошибка при кодировании текста в ${encoding}:`, error);
+    return null;
   }
-}
+};
 
-function onError(err) {
-  if (err) {
-    console.log('err: ', err);
-  }
-}
-
-runTest();
-
-// Задание №2
-
-import { EventEmitter } from 'node:events';
-import { appendFile, stat, truncate, copyFile } from 'node:fs/promises';
-
-class Logger extends EventEmitter {
-  constructor(filename, maxSize) {
-    super();
-    this.filename = filename;
-    this.maxSize = maxSize;
-    this.logQueue = [];
-    this.writing = false;
-  }
-
-  log(message) {
-    this.logQueue.unshift(message);
-    if (!this.writing) {
-      this.writing = true;
-      this.writeLog();
-    }
-  }
-
-  async writeLog() {
-    if (this.logQueue.length === 0) {
-      this.writing = false;
-      return;
-    }
-
-    const messagesToWrite = [...this.logQueue];
-    this.logQueue = [];
-    this.emit('messageLogged', messagesToWrite);
-
-    try {
-      await appendFile(this.filename, messagesToWrite.join('\n') + '\n');
-
-      await this.checkFileSize();
-    } catch (err) {
-      console.error('Ошибка при записи в файл', err);
-      this.emit('error', err);
-    } finally {
-      if (this.logQueue.length > 0) {
-        this.writeLog();
-      } else {
-        this.writing = false;
-      }
-    }
-  }
-
-  async getFileSize() {
-    try {
-      const stats = await stat(this.filename);
-      return stats.size;
-    } catch (err) {
-      console.error('Ошибка при получении размера файла', err);
-      return 0;
-    }
-  }
-
-  async checkFileSize() {
-    const fileSize = await this.getFileSize();
-    if (fileSize > this.maxSize) {
-      await this.rotateLog();
-    }
-  }
-
-  async rotateLog() {
-    const backupFilename = this.filename + '.bak';
-
-    try {
-      this.emit('rotate', this.filename, backupFilename);
-    } catch (err) {
-      console.error('Ошибка при ротации лога', err);
-      this.emit('error', err);
-    }
-  }
-}
-
-// Проверка работы
-const logger = new Logger('log.txt', 1024);
-
-logger.on('messageLogged', message => {
-  console.log('Записано сообщение:', message);
-});
-
-logger.on('rotate', async (oldFilename, newFilename) => {
+const bufferToText = (buffer, encoding) => {
   try {
-    await copyFile(oldFilename, newFilename);
-    console.log(`Файл ${oldFilename} ротирован в ${newFilename}`);
-    await truncate(oldFilename, 0);
-    console.log(`Файл ${oldFilename} очищен`);
-  } catch (err) {
-    console.error('Ошибка при копировании или обрезке файла:', err);
-    logger.emit('error', err);
+    return buffer.toString(encoding);
+  } catch (error) {
+    console.error(`Ошибка при декодировании буфера в ${encoding}:`, error);
+    return null;
   }
-});
+};
 
-logger.on('error', err => {
-  console.error('Ошибка:', err);
-});
+const text = 'Привет мир!';
 
-logger.log('Первое сообщение');
+const utf8Buffer = textToBuffer(text, 'utf-8');
+console.log('utf8Buffer: ', utf8Buffer);
 
-logger.log('Второе сообщение');
+const base64String = bufferToText(utf8Buffer, 'base64');
+console.log('base64String:', base64String);
 
-// Функция для генерации большого количества логов, чтобы вызвать ротацию
-function generateLotsOfLogs() {
-  for (let i = 0; i < 150; i++) {
-    logger.log(`Лог сообщение ${i}`);
+const base64Buffer = textToBuffer(base64String, 'base64');
+console.log('base64Buffer:', base64Buffer);
+
+const decodedText = bufferToText(base64Buffer, 'utf-8');
+console.log('decodedText: ', decodedText);
+
+// Задание #2
+
+import { createReadStream, createWriteStream } from 'node:fs';
+import { readdir } from 'node:fs/promises';
+
+async function mergeTextFiles(directoryPath, outputFilename) {
+  try {
+    const writeStream = createWriteStream(outputFilename);
+
+    const files = await readdir(directoryPath);
+
+    const txtFiles = files.filter(file => file.endsWith('.txt'));
+
+    for (const file of txtFiles) {
+      const filePath = `${directoryPath + '/' + file}`;
+      const readStream = createReadStream(filePath);
+
+      readStream.on('data', chunk => {
+        writeStream.write(`[${file.replace('.txt', '')}]\n`);
+        writeStream.write(chunk);
+      });
+    }
+  } catch (error) {
+    console.error('Ошибка при объединении файлов:', error);
   }
 }
 
-generateLotsOfLogs();
+const directoryPath = './files';
+const outputFilename = './combined.txt';
+mergeTextFiles(directoryPath, outputFilename);
+
+// Задание 3
+
+// import { createReadStream, createWriteStream } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
+import sharp from 'sharp';
+
+const resizeImage = async (inputPath, outputPath) => {
+  const rStream = createReadStream(inputPath);
+  const wStream = createWriteStream(outputPath);
+  const resized = sharp().resize(400, 400).toFormat('jpeg');
+  try {
+    await pipeline(rStream, resized, wStream);
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+resizeImage('./files/screen-7.jpg', './files/resized.jpg');
+
+const colorImage = async (inputPath, outputPath) => {
+  const rStream = createReadStream(inputPath);
+  const wStream = createWriteStream(outputPath);
+  const changeColor = sharp().grayscale().blur(10).toFormat('jpeg');
+  try {
+    await pipeline(rStream, changeColor, wStream);
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+colorImage('./files/screen-7.jpg', './files/changeColor.jpg');
