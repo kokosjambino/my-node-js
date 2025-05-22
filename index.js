@@ -38,6 +38,8 @@ console.log('decodedText: ', decodedText);
 
 import { createReadStream, createWriteStream } from 'node:fs';
 import { readdir } from 'node:fs/promises';
+import { pipeline } from 'node:stream/promises';
+import { Readable } from 'node:stream';
 
 async function mergeTextFiles(directoryPath, outputFilename) {
   try {
@@ -48,14 +50,22 @@ async function mergeTextFiles(directoryPath, outputFilename) {
     const txtFiles = files.filter(file => file.endsWith('.txt'));
 
     for (const file of txtFiles) {
-      const filePath = `${directoryPath + '/' + file}`;
+      const filePath = `${directoryPath}/${file}`;
+
+      const headerStream = Readable.from([`[${file.replace('.txt', '')}]\n`]);
+
       const readStream = createReadStream(filePath);
 
-      readStream.on('data', chunk => {
-        writeStream.write(`[${file.replace('.txt', '')}]\n`);
-        writeStream.write(chunk);
-      });
+      const newlineStream = Readable.from(['\n']);
+
+      await pipeline(headerStream, writeStream, { end: false });
+      await pipeline(readStream, writeStream, { end: false });
+      await pipeline(newlineStream, writeStream, { end: false });
     }
+
+    writeStream.end();
+
+    console.log(`Файлы успешно объединены в ${outputFilename}`);
   } catch (error) {
     console.error('Ошибка при объединении файлов:', error);
   }
@@ -68,7 +78,7 @@ mergeTextFiles(directoryPath, outputFilename);
 // Задание 3
 
 // import { createReadStream, createWriteStream } from 'node:fs';
-import { pipeline } from 'node:stream/promises';
+// import { pipeline } from 'node:stream/promises';
 import sharp from 'sharp';
 
 const resizeImage = async (inputPath, outputPath) => {
