@@ -1,108 +1,110 @@
-// Задание 1
+import readline from 'node:readline';
+import process from 'node:process';
+import fs from 'node:fs';
 
-import { Buffer } from 'node:buffer';
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
 
-const textToBuffer = (text, encoding) => {
-  try {
-    return Buffer.from(text, encoding);
-  } catch (error) {
-    console.error(`Ошибка при кодировании текста в ${encoding}:`, error);
-    return null;
-  }
-};
+const questionsFilePath = 'question.json';
+let questions = [];
 
-const bufferToText = (buffer, encoding) => {
-  try {
-    return buffer.toString(encoding);
-  } catch (error) {
-    console.error(`Ошибка при декодировании буфера в ${encoding}:`, error);
-    return null;
-  }
-};
-
-const text = 'Привет мир!';
-
-const utf8Buffer = textToBuffer(text, 'utf-8');
-console.log('utf8Buffer: ', utf8Buffer);
-
-const base64String = bufferToText(utf8Buffer, 'base64');
-console.log('base64String:', base64String);
-
-const base64Buffer = textToBuffer(base64String, 'base64');
-console.log('base64Buffer:', base64Buffer);
-
-const decodedText = bufferToText(base64Buffer, 'utf-8');
-console.log('decodedText: ', decodedText);
-
-// Задание #2
-
-import { createReadStream, createWriteStream } from 'node:fs';
-import { readdir } from 'node:fs/promises';
-import { pipeline } from 'node:stream/promises';
-import { Readable } from 'node:stream';
-
-async function mergeTextFiles(directoryPath, outputFilename) {
-  try {
-    const writeStream = createWriteStream(outputFilename);
-
-    const files = await readdir(directoryPath);
-
-    const txtFiles = files.filter(file => file.endsWith('.txt'));
-
-    for (const file of txtFiles) {
-      const filePath = `${directoryPath}/${file}`;
-
-      const headerStream = Readable.from([`[${file.replace('.txt', '')}]\n`]);
-
-      const readStream = createReadStream(filePath);
-
-      const newlineStream = Readable.from(['\n']);
-
-      await pipeline(headerStream, writeStream, { end: false });
-      await pipeline(readStream, writeStream, { end: false });
-      await pipeline(newlineStream, writeStream, { end: false });
-    }
-
-    writeStream.end();
-
-    console.log(`Файлы успешно объединены в ${outputFilename}`);
-  } catch (error) {
-    console.error('Ошибка при объединении файлов:', error);
-  }
+try {
+  const data = fs.readFileSync(questionsFilePath, 'utf8');
+  questions = JSON.parse(data);
+} catch (error) {
+  console.error(`Ошибка при чтении файла с вопросами: ${error.message}`);
+  process.exit(1);
 }
 
-const directoryPath = './files';
-const outputFilename = './combined.txt';
-mergeTextFiles(directoryPath, outputFilename);
+let currentQuestionIndex = 0;
+let correctAnswersCount = 0;
+let answers = new Array(questions.length).fill(null);
 
-// Задание 3
+const GREEN_BG = '\x1b[42m'; // Зеленый фон
+const RED_BG = '\x1b[41m'; // Красный фон
+const GREEN_TEXT = '\x1b[32m'; // Зеленый текст
+const RED_TEXT = '\x1b[31m'; // Красный текст
+const BLUE_TEXT = '\x1b[34m'; // Синий текст
+const RESET = '\x1b[0m';
+const DEFAULT_BG = '\x1b[49m'; //Сбрасываем цвет фона
 
-// import { createReadStream, createWriteStream } from 'node:fs';
-// import { pipeline } from 'node:stream/promises';
-import sharp from 'sharp';
+const displayProgressBar = () => {
+  let progressBar = '';
 
-const resizeImage = async (inputPath, outputPath) => {
-  const rStream = createReadStream(inputPath);
-  const wStream = createWriteStream(outputPath);
-  const resized = sharp().resize(400, 400).toFormat('jpeg');
-  try {
-    await pipeline(rStream, resized, wStream);
-  } catch (err) {
-    console.error(err);
+  for (let i = 0; i < questions.length; i++) {
+    if (answers[i] === true) {
+      progressBar += GREEN_BG + ' ' + RESET;
+    } else if (answers[i] === false) {
+      progressBar += RED_BG + ' ' + RESET;
+    } else {
+      progressBar += DEFAULT_BG + ' ' + RESET;
+    }
   }
+
+  console.log(`Вопросов: ${currentQuestionIndex} из ${questions.length}`);
+  console.log(`${progressBar}`);
 };
 
-resizeImage('./files/screen-7.jpeg', './files/resized.jpg');
-
-const colorImage = async (inputPath, outputPath) => {
-  const rStream = createReadStream(inputPath);
-  const wStream = createWriteStream(outputPath);
-  const changeColor = sharp().grayscale().blur(10).toFormat('jpeg');
-  try {
-    await pipeline(rStream, changeColor, wStream);
-  } catch (err) {
-    console.error(err);
+const askQuestion = () => {
+  if (currentQuestionIndex >= questions.length) {
+    console.log('\nКвиз завершен!');
+    console.log(
+      `Вы ответили правильно на ${correctAnswersCount} из ${questions.length} вопросов.`,
+    );
+    displayProgressBar();
+    rl.close();
+    process.exit(0);
   }
+
+  const question = questions[currentQuestionIndex];
+
+  displayProgressBar();
+
+  console.log(
+    `${GREEN_TEXT}Вопрос ${currentQuestionIndex + 1}: ${question.question}${RESET}`,
+  );
+  for (let i = 0; i < question.options.length; i++) {
+    console.log(`${i + 1}. ${question.options[i]}`);
+  }
+
+  rl.question('Введите номер вашего ответа: ', answer => {
+    const answerNumber = parseInt(answer, 10);
+
+    if (
+      isNaN(answerNumber) ||
+      answerNumber < 1 ||
+      answerNumber > question.options.length
+    ) {
+      console.log(
+        'Некорректный ввод. Пожалуйста, введите число от 1 до ' +
+          question.options.length,
+      );
+      askQuestion();
+      return;
+    }
+
+    console.log(`${BLUE_TEXT}Ваш ответ: ${answerNumber}${RESET}`);
+
+    let isCorrect = answerNumber - 1 === question.correctIndex;
+    if (isCorrect) {
+      console.log(`${GREEN_TEXT}Правильный ответ!${RESET}`);
+      correctAnswersCount++;
+      answers[currentQuestionIndex] = true;
+    } else {
+      console.log(`${RED_TEXT}Неправильный ответ!${RESET}`);
+      answers[currentQuestionIndex] = false;
+    }
+
+    currentQuestionIndex++;
+    askQuestion();
+  });
 };
 
-colorImage('./files/screen-7.jpeg', './files/changeColor.jpg');
+console.log('');
+console.log(
+  'Добро пожаловать в Квиз! Ответьте на вопросы, вводя номер выбранного варианта ответа от 1 до 3.',
+);
+
+askQuestion();
