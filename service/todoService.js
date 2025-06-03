@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-const DATA_FILE = 'todos.json';
+const DATA_FILE = 'homedir/todos.json';
 let tasks = [];
 
 const loadTasks = () => {
